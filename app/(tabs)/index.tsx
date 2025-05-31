@@ -1,60 +1,120 @@
-import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
-import { auth } from '../../FirebaseConfig';
+import { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, SafeAreaView, StyleSheet } from 'react-native';
+import { db } from '../../FirebaseConfig';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { router } from 'expo-router';
-import { getAuth } from 'firebase/auth';
+import { Event } from '../../types';
 
-export default function TabOneScreen() {
+const EventsScreen = () => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  getAuth().onAuthStateChanged((user) => {
-    if (!user) router.replace('/');
-  });
+  useEffect(() => {
+    const q = query(collection(db, 'events'), orderBy('date', 'asc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const eventsData: Event[] = [];
+      querySnapshot.forEach((doc) => {
+        eventsData.push({ id: doc.id, ...doc.data() } as Event);
+      });
+      setEvents(eventsData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleEventPress = (eventId: string) => {
+    router.push(`/event-details/${eventId}`);
+  };
+
+  if (loading) {
+    return (
+        <SafeAreaView style={styles.container}>
+          <Text>Cargando eventos...</Text>
+        </SafeAreaView>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign Out</Text>
-      <TouchableOpacity style={styles.button} onPress={() => auth.signOut()}>
-        <Text style={styles.text}>Sign Out</Text>
-      </TouchableOpacity>
-    </View>
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.title}>Próximos Eventos</Text>
+
+        <FlatList
+            data={events}
+            keyExtractor={(item) => item.id!}
+            renderItem={({ item }) => (
+                <TouchableOpacity
+                    style={styles.eventCard}
+                    onPress={() => handleEventPress(item.id!)}
+                >
+                  <Text style={styles.eventTitle}>{item.title}</Text>
+                  <Text style={styles.eventDate}>{item.date} a las {item.time}</Text>
+                  <Text style={styles.eventLocation}>{item.location}</Text>
+                </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No hay eventos próximos</Text>
+            }
+        />
+
+        <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => router.push('/CreateEventScreen')}
+        >
+          <Text style={styles.createButtonText}>Crear Nuevo Evento</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA', // A softer white for a modern, minimalist background
+    padding: 20,
+    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 28, // A bit larger for a more striking appearance
-    fontWeight: '800', // Extra bold for emphasis
-    color: '#1A237E', // A deep indigo for a sophisticated, modern look
-    marginBottom: 40, // Increased space for a more airy, open feel
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
-  separator: {
-    marginVertical: 30,
-    height: 2, // Slightly thicker for a more pronounced separation
-    width: '80%',
-    backgroundColor: '#E8EAF6', // Using a light indigo to match the border of the textInput
+  eventCard: {
+    backgroundColor: '#f9f9f9',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
   },
-  button: {
-    width: '90%',
-    backgroundColor: '#5C6BC0', // A lighter indigo to complement the title color
-    padding: 20,
-    borderRadius: 15, // Softly rounded corners for a modern, friendly touch
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  eventDate: {
+    color: '#666',
+    marginBottom: 3,
+  },
+  eventLocation: {
+    color: '#666',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#666',
+  },
+  createButton: {
+    backgroundColor: '#4285F4',
+    padding: 15,
+    borderRadius: 6,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5C6BC0', // Shadow color to match the button for a cohesive look
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-    elevation: 5, // Slightly elevated for a subtle 3D effect
-    marginTop: 15, // Adjusted to match the new style
+    marginTop: 10,
   },
-  text: {
-    color: '#FFFFFF', // Maintained white for clear visibility
-    fontSize: 18, // Slightly larger for emphasis
-    fontWeight: '600', // Semi-bold for a balanced weight
-  }
+  createButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 });
+
+export default EventsScreen;

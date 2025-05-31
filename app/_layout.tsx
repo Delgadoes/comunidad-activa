@@ -49,12 +49,51 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+
+          {/* Pantallas de autenticación */}
+          <Stack.Screen
+              name="login"
+              options={{
+                title: 'Iniciar Sesión',
+                headerBackTitle: 'Atrás',
+              }}
+          />
+          <Stack.Screen
+              name="register"
+              options={{
+                title: 'Registrarse',
+                headerBackTitle: 'Atrás',
+              }}
+          />
+
+          {/* Pantallas de gestión de eventos */}
+          <Stack.Screen
+              name="events"
+              options={{
+                title: 'Eventos Comunitarios',
+                headerBackTitle: 'Atrás',
+              }}
+          />
+          <Stack.Screen
+              name="create-event"
+              options={{
+                title: 'Crear Evento',
+                headerBackTitle: 'Cancelar',
+              }}
+          />
+          <Stack.Screen
+              name="event-details/[id]"
+              options={{
+                title: 'Detalles del Evento',
+                headerBackTitle: 'Eventos',
+              }}
+          />
+        </Stack>
+      </ThemeProvider>
   );
 }
