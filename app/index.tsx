@@ -1,22 +1,60 @@
-import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, View } from 'react-native'
-import React, { useState } from 'react'
-import { auth } from '../FirebaseConfig'
-import { signInWithEmailAndPassword } from 'firebase/auth'
-import { router } from 'expo-router'
+import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, View, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { auth } from '../FirebaseConfig';
+import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import { router } from 'expo-router';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const signIn = async () => {
-    try {
-      const user = await signInWithEmailAndPassword(auth, email, password)
-      if (user) router.replace('/(tabs)');
-    } catch (error: any) {
-      console.log(error)
-      alert('Inicio de sesión fallido: ' + error.message);
+  // Listener para estado de autenticación
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Redirige a la pantalla principal si ya está autenticado
+        router.replace({
+          pathname: '/(tabs)',
+          params: { refresh: Date.now() }
+        });
+      }
+    });
+    return () => unsubscribe(); // Limpia el listener al desmontar
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Por favor ingresa email y contraseña');
+      return;
     }
-  }
+
+    setIsLoading(true);
+    try {
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+      if (user) {
+        router.replace({
+          pathname: '/(tabs)',
+          params: { refresh: Date.now() }
+        });
+      }
+    } catch (error: any) {
+      console.error('Error de login:', error);
+      let errorMessage = 'Error al iniciar sesión';
+
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Email inválido';
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Usuario no registrado';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Contraseña incorrecta';
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
       <SafeAreaView style={styles.container}>
@@ -32,6 +70,8 @@ const LoginScreen = () => {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
           />
         </View>
 
@@ -43,6 +83,8 @@ const LoginScreen = () => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              autoComplete="password"
+              textContentType="password"
           />
         </View>
 
@@ -50,8 +92,14 @@ const LoginScreen = () => {
           <Text style={styles.forgotPasswordText}>¿Has olvidado tu contraseña?</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.loginButton} onPress={signIn}>
-          <Text style={styles.buttonText}>Iniciar sesión</Text>
+        <TouchableOpacity
+            style={[styles.loginButton, isLoading && styles.disabledButton]}
+            onPress={handleLogin}
+            disabled={isLoading}
+        >
+          <Text style={styles.buttonText}>
+            {isLoading ? 'Cargando...' : 'Iniciar sesión'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -61,10 +109,8 @@ const LoginScreen = () => {
           <Text style={styles.registerText}>Regístrate</Text>
         </TouchableOpacity>
       </SafeAreaView>
-  )
-}
-
-export default LoginScreen
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -123,6 +169,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 20,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -143,3 +192,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   }
 });
+
+export default LoginScreen;

@@ -21,8 +21,11 @@ export default function TabLayout() {
             screenOptions={{
                 tabBarActiveTintColor: 'blue',
                 headerShown: true,
-                headerLeft: () => <DropdownMenu />,
+                headerRight: () => <DropdownMenu />,
                 headerTitle: '🌟 Comunidad', // Elimina el título por defecto
+                headerStyle: {
+                    backgroundColor: '#4285F4', // Color azul similar al de tu menú desplegable
+                },
                 // ESTA ES LA PARTE CLAVE PARA ELIMINAR LA BARRA
                 tabBarStyle: {
                     display: 'none' // Esto oculta completamente la barra de tabs
@@ -44,20 +47,7 @@ export default function TabLayout() {
                 options={{
                     title: 'Inicio',
                     tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-                    headerRight: () => (
-                        <Link href="/DropdownMenu" asChild>
-                            <Pressable>
-                                {({ pressed }) => (
-                                    <FontAwesome
-                                        name="info-circle"
-                                        size={25}
-                                        color={Colors[colorScheme ?? 'light'].text}
-                                        style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                                    />
-                                )}
-                            </Pressable>
-                        </Link>
-                    ),
+
                 }}
             />
             {/* Resto de tus pantallas... */}

@@ -1,134 +1,130 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet } from 'react-native';
-import { db } from '../../FirebaseConfig';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { auth } from '../../FirebaseConfig';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Event } from '../../types';
+import { useEffect, useState } from 'react';
+import { auth, db } from '../../FirebaseConfig';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const EventDetailsScreen = () => {
-    const { id } = useLocalSearchParams();
-    const [event, setEvent] = useState<Event | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [isAttending, setIsAttending] = useState(false);
+    const { eventId, title, date, location, description, isAttending } = useLocalSearchParams();
+    const [attending, setAttending] = useState(isAttending === 'true');
+    const [attended, setAttended] = useState(false);
 
     useEffect(() => {
-        const fetchEvent = async () => {
-            try {
-                const docRef = doc(db, 'events', id as string);
-                const docSnap = await getDoc(docRef);
+        const fetchAttendanceStatus = async () => {
+            if (auth.currentUser && eventId) {
+                const attendanceRef = doc(db, 'events', eventId as string, 'attendances', auth.currentUser.uid);
+                const attendanceSnap = await getDoc(attendanceRef);
 
-                if (docSnap.exists()) {
-                    const eventData = { id: docSnap.id, ...docSnap.data() } as Event;
-                    setEvent(eventData);
-
-                    // Verificar si el usuario actual está en la lista de asistentes
-                    const user = auth.currentUser;
-                    if (user && eventData.attendees.includes(user.uid)) {
-                        setIsAttending(true);
-                    }
-                } else {
-                    console.log('No such document!');
+                if (attendanceSnap.exists()) {
+                    const attendanceData = attendanceSnap.data();
+                    setAttending(attendanceData.attending || false);
+                    setAttended(attendanceData.attended || false);
                 }
-            } catch (error) {
-                console.error('Error fetching event:', error);
-            } finally {
-                setLoading(false);
             }
         };
 
-        fetchEvent();
-    }, [id]);
+        fetchAttendanceStatus();
+    }, [eventId]);
 
-    const handleRSVP = async () => {
-        const user = auth.currentUser;
-        if (!user) {
+    const toggleAttendance = async (action: 'willAttend' | 'attended' | 'cancel') => {
+        if (!auth.currentUser || !eventId) {
             alert('Debes iniciar sesión para confirmar asistencia');
             return;
         }
 
-        if (!event) return;
-
         try {
-            const eventRef = doc(db, 'events', event.id!);
+            const attendanceRef = doc(db, 'events', eventId as string, 'attendances', auth.currentUser.uid);
 
-            if (isAttending) {
-                await updateDoc(eventRef, {
-                    attendees: arrayRemove(user.uid)
-                });
-                setIsAttending(false);
-                alert('Has cancelado tu asistencia al evento');
-            } else {
-                await updateDoc(eventRef, {
-                    attendees: arrayUnion(user.uid)
-                });
-                setIsAttending(true);
-                alert('¡Asistencia confirmada! Te esperamos en el evento');
+            switch (action) {
+                case 'willAttend':
+                    await setDoc(attendanceRef, {
+                        attending: true,
+                        attended: false,
+                        userId: auth.currentUser.uid,
+                        timestamp: new Date()
+                    });
+                    setAttending(true);
+                    setAttended(false);
+                    break;
+
+                case 'attended':
+                    await setDoc(attendanceRef, {
+                        attending: false,
+                        attended: true,
+                        userId: auth.currentUser.uid,
+                        timestamp: new Date()
+                    }, { merge: true });
+                    setAttending(false);
+                    setAttended(true);
+                    alert('¡Gracias por confirmar tu asistencia!');
+                    break;
+
+                case 'cancel':
+                    await setDoc(attendanceRef, {
+                        attending: false,
+                        attended: false,
+                        userId: auth.currentUser.uid,
+                        timestamp: new Date()
+                    }, { merge: true });
+                    setAttending(false);
+                    setAttended(false);
+                    break;
             }
         } catch (error) {
-            console.error('Error updating attendance:', error);
-            alert('Error al actualizar tu asistencia');
+            console.error('Error al actualizar asistencia:', error);
+            alert('Error al actualizar asistencia');
         }
     };
 
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Text>Cargando detalles del evento...</Text>
-            </SafeAreaView>
-        );
-    }
-
-    if (!event) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Text>Evento no encontrado</Text>
-            </SafeAreaView>
-        );
-    }
-
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>{event.title}</Text>
+            <View style={styles.content}>
+                <Text style={styles.title}>{title}</Text>
 
-            <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Fecha:</Text>
-                <Text style={styles.detailValue}>{event.date}</Text>
+                <View style={styles.detailsContainer}>
+                    <Text style={styles.detail}>Fecha: {date}</Text>
+                    <Text style={styles.detail}>Ubicación: {location}</Text>
+                </View>
+
+                {description && (
+                    <Text style={styles.description}>{description}</Text>
+                )}
+
+                <View style={styles.buttonsContainer}>
+                    {!attending && !attended ? (
+                        <TouchableOpacity
+                            style={[styles.button, styles.willAttendButton]}
+                            onPress={() => toggleAttendance('willAttend')}
+                        >
+                            <Text style={styles.buttonText}>Asistiré</Text>
+                        </TouchableOpacity>
+                    ) : attending ? (
+                        <>
+                            <TouchableOpacity
+                                style={[styles.button, styles.attendedButton]}
+                                onPress={() => toggleAttendance('attended')}
+                            >
+                                <Text style={styles.buttonText}>Marcar como asistido</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.button, styles.cancelButton]}
+                                onPress={() => toggleAttendance('cancel')}
+                            >
+                                <Text style={styles.buttonText}>Cancelar asistencia</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : attended && (
+                        <Text style={styles.attendedText}>Ya asististe a este evento</Text>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.button, styles.backButton]}
+                        onPress={() => router.back()}
+                    >
+                        <Text style={styles.buttonText}>Volver</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
-
-            <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Hora:</Text>
-                <Text style={styles.detailValue}>{event.time}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Ubicación:</Text>
-                <Text style={styles.detailValue}>{event.location}</Text>
-            </View>
-
-            <View style={styles.descriptionContainer}>
-                <Text style={styles.description}>{event.description}</Text>
-            </View>
-
-            <View style={styles.organizerContainer}>
-                <Text style={styles.organizerText}>Organizado por: {event.organizerName}</Text>
-            </View>
-
-            <Text style={styles.attendeesText}>
-                Asistentes confirmados: {event.attendees.length}
-            </Text>
-
-            <TouchableOpacity
-                style={[
-                    styles.rsvpButton,
-                    isAttending ? styles.cancelButton : styles.confirmButton
-                ]}
-                onPress={handleRSVP}
-            >
-                <Text style={styles.rsvpButtonText}>
-                    {isAttending ? 'Cancelar Asistencia' : 'Confirmar Asistencia'}
-                </Text>
-            </TouchableOpacity>
         </SafeAreaView>
     );
 };
@@ -136,67 +132,64 @@ const EventDetailsScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    content: {
+        flex: 1,
         padding: 20,
-        backgroundColor: '#fff',
     },
     title: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
+        color: '#2c3e50',
         marginBottom: 20,
-        textAlign: 'center',
     },
-    detailRow: {
-        flexDirection: 'row',
+    detailsContainer: {
+        marginBottom: 20,
+    },
+    detail: {
+        fontSize: 18,
+        color: '#555',
         marginBottom: 10,
-    },
-    detailLabel: {
-        fontWeight: 'bold',
-        width: 100,
-    },
-    detailValue: {
-        flex: 1,
-    },
-    descriptionContainer: {
-        marginVertical: 20,
-        padding: 10,
-        backgroundColor: '#f9f9f9',
-        borderRadius: 8,
     },
     description: {
         fontSize: 16,
-        lineHeight: 24,
-    },
-    organizerContainer: {
-        marginTop: 10,
-        paddingTop: 10,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-    },
-    organizerText: {
-        fontStyle: 'italic',
         color: '#666',
+        lineHeight: 24,
+        marginBottom: 30,
     },
-    attendeesText: {
-        marginTop: 10,
-        color: '#4285F4',
-        fontWeight: 'bold',
+    buttonsContainer: {
+        marginTop: 20,
     },
-    rsvpButton: {
-        marginTop: 30,
-        padding: 15,
-        borderRadius: 6,
+    button: {
+        paddingVertical: 15,
+        borderRadius: 8,
         alignItems: 'center',
+        marginBottom: 15,
     },
-    confirmButton: {
-        backgroundColor: '#4CAF50',
+    buttonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    willAttendButton: {
+        backgroundColor: '#4285f4',
+    },
+    attendedButton: {
+        backgroundColor: '#4caf50',
     },
     cancelButton: {
         backgroundColor: '#f44336',
     },
-    rsvpButtonText: {
-        color: '#fff',
-        fontWeight: 'bold',
+    backButton: {
+        backgroundColor: '#9e9e9e',
+    },
+    attendedText: {
+        textAlign: 'center',
         fontSize: 16,
+        color: '#4caf50',
+        marginBottom: 15,
+        fontWeight: '600',
     },
 });
 
