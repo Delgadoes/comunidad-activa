@@ -24,7 +24,7 @@ const EventsScreen = () => {
   }, []);
 
   const handleEventPress = (eventId: string) => {
-    router.push(`/event-details/${eventId}`);
+    router.push(`/(tabs)/EventDetailsScreen?id=${eventId}`);
   };
 
   if (loading) {

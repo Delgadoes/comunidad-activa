@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to upload images.",
-        "NSPhotoLibraryUsageDescription": "This app needs access to the photo library to upload images."
+        "NSPhotoLibraryUsageDescription": "This app needs access to the photo library to upload images.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -26,7 +27,11 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.andrewheim.firebaseexpoguide",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +43,15 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "06c00353-5aa4-4aa6-9d53-d804ffbca03c"
+      }
     }
+    
   }
 }

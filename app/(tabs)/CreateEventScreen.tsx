@@ -46,7 +46,7 @@ const CreateEventScreen = () => {
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContainer}>
-                <Text style={styles.header}>Comunidad</Text>
+                <Text style={styles.header}>Comunidad activa</Text>
 
                 <Text style={styles.sectionTitle}>Crear nuevo evento</Text>
 
