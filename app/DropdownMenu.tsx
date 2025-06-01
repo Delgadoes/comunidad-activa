@@ -14,7 +14,7 @@ const DropdownMenu = () => {
       console.log('Sesión cerrada exitosamente');
       // Fuerza un reinicio completo de la navegación
       router.replace({
-        pathname: '/',
+        pathname: '/login',
         params: { refresh: Date.now() },
       });
       // Opcional: recarga la pantalla

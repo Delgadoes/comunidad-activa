@@ -88,7 +88,10 @@ const LoginScreen = () => {
           />
         </View>
 
-        <TouchableOpacity style={styles.forgotPassword}>
+        <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => router.push('/reset-password')}
+        >
           <Text style={styles.forgotPasswordText}>¿Has olvidado tu contraseña?</Text>
         </TouchableOpacity>
 
