@@ -35,7 +35,7 @@ const DropdownMenu = () => {
 
         {isOpen && (
             <View style={styles.dropdown}>
-              <Link href="/community" asChild>
+              <Link href="/CommunityScreen" asChild>
                 <TouchableOpacity style={styles.menuItem}>
                   <Text style={styles.menuText}>Comunidad</Text>
                 </TouchableOpacity>

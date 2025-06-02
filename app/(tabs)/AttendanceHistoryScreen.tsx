@@ -1,6 +1,6 @@
 import { View, Text, FlatList, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useState, useCallback } from 'react';
 import { auth, db } from '../../FirebaseConfig';
 import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Event } from '../../types';
@@ -9,50 +9,51 @@ const AttendanceHistoryScreen = () => {
     const [attendedEvents, setAttendedEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchAttendedEvents = async () => {
-            if (!auth.currentUser) {
-                setLoading(false);
-                return;
-            }
+    const fetchAttendedEvents = useCallback(async () => {
+        if (!auth.currentUser) {
+            setLoading(false);
+            return;
+        }
 
-            try {
-                // Obtener todos los eventos
-                const eventsQuery = query(collection(db, 'events'));
-                const eventsSnapshot = await getDocs(eventsQuery);
+        try {
+            setLoading(true);
+            const eventsQuery = query(collection(db, 'events'));
+            const eventsSnapshot = await getDocs(eventsQuery);
 
-                const eventsData: Event[] = [];
+            const eventsData: Event[] = [];
 
-                // Verificar asistencia en cada evento
-                for (const eventDoc of eventsSnapshot.docs) {
-                    const attendanceRef = doc(db, 'events', eventDoc.id, 'attendances', auth.currentUser.uid);
-                    const attendanceSnap = await getDoc(attendanceRef);
+            for (const eventDoc of eventsSnapshot.docs) {
+                const attendanceRef = doc(db, 'events', eventDoc.id, 'attendances', auth.currentUser.uid);
+                const attendanceSnap = await getDoc(attendanceRef);
 
-                    if (attendanceSnap.exists() && attendanceSnap.data()?.attended) {
-                        const eventData = eventDoc.data();
-                        eventsData.push({
-                            id: eventDoc.id,
-                            title: eventData.title,
-                            description: eventData.description,
-                            date: eventData.date,
-                            location: eventData.location,
-                            organizerId: eventData.organizerId,
-                            organizerName: eventData.organizerName
-                        } as Event);
-                    }
+                if (attendanceSnap.exists() && attendanceSnap.data()?.attended) {
+                    const eventData = eventDoc.data();
+                    eventsData.push({
+                        id: eventDoc.id,
+                        title: eventData.title,
+                        description: eventData.description,
+                        date: eventData.date,
+                        location: eventData.location,
+                        organizerId: eventData.organizerId,
+                        organizerName: eventData.organizerName
+                    } as Event);
                 }
-
-                setAttendedEvents(eventsData);
-            } catch (error) {
-                console.error('Error fetching attended events:', error);
-                alert('Error al cargar el historial de asistencia');
-            } finally {
-                setLoading(false);
             }
-        };
 
-        fetchAttendedEvents();
+            setAttendedEvents(eventsData);
+        } catch (error) {
+            console.error('Error fetching attended events:', error);
+            alert('Error al cargar el historial de asistencia');
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchAttendedEvents();
+        }, [fetchAttendedEvents])
+    );
 
     if (loading) {
         return (
