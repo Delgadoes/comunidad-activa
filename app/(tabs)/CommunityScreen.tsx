@@ -2,7 +2,16 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useState, useCallback } from 'react';
 import { auth, db } from '../../FirebaseConfig';
-import { collection, query, where, getDocs, getCountFromServer,doc,getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getCountFromServer, doc, getDoc } from 'firebase/firestore';
+import { MaterialIcons } from '@expo/vector-icons';
+
+interface PopularEvent {
+    id: string;
+    title: string;
+    attendees: number;
+    commentsCount: number;
+    averageRating: number;
+}
 
 const CommunityScreen = () => {
     const [stats, setStats] = useState({
@@ -11,8 +20,10 @@ const CommunityScreen = () => {
         eventsWillAttend: 0,
         eventsNotAttended: 0,
         participationRate: 0,
+        totalComments: 0,
+        averageEventRating: 0,
         eventsByMonth: [],
-        popularEvents: []
+        popularEvents: [] as PopularEvent[]
     });
     const [loading, setLoading] = useState(true);
 
@@ -33,6 +44,9 @@ const CommunityScreen = () => {
             // Contadores para los diferentes estados
             let eventsAttended = 0;
             let eventsWillAttend = 0;
+            let totalComments = 0;
+            let totalRatings = 0;
+            let ratedEvents = 0;
 
             // Verificar el estado de asistencia para cada evento
             for (const eventDoc of eventsSnapshot.docs) {
@@ -47,28 +61,59 @@ const CommunityScreen = () => {
                         eventsWillAttend++;
                     }
                 }
+
+                // Obtener estadísticas de comentarios y ratings
+                const commentsRef = collection(db, 'events', eventDoc.id, 'comments');
+                const commentsQuery = query(commentsRef);
+                const commentsSnapshot = await getDocs(commentsQuery);
+                const commentsCount = commentsSnapshot.size;
+                totalComments += commentsCount;
+
+                // Calcular promedio de ratings por evento
+                if (commentsCount > 0) {
+                    const eventRatings = commentsSnapshot.docs.reduce((sum, doc) => {
+                        return sum + (doc.data().rating || 0);
+                    }, 0);
+                    totalRatings += eventRatings;
+                    ratedEvents++;
+                }
             }
 
             const eventsNotAttended = totalEvents - eventsAttended - eventsWillAttend;
             const participationRate = totalEvents > 0 ? Math.round((eventsAttended / totalEvents) * 100) : 0;
+            const averageEventRating = ratedEvents > 0 ? parseFloat((totalRatings / ratedEvents).toFixed(1)) : 0;
 
-            // Obtener eventos más populares (contando asistentes reales)
-            const popularEvents = [];
-            for (const eventDoc of eventsSnapshot.docs) {
+            // Obtener eventos más populares (contando asistentes y comentarios)
+            const popularEventsPromises = eventsSnapshot.docs.map(async (eventDoc) => {
                 const attendancesRef = collection(db, 'events', eventDoc.id, 'attendances');
                 const attendedQuery = query(attendancesRef, where('attended', '==', true));
                 const attendedSnapshot = await getCountFromServer(attendedQuery);
                 const attendeesCount = attendedSnapshot.data().count;
 
-                popularEvents.push({
+                const commentsRef = collection(db, 'events', eventDoc.id, 'comments');
+                const commentsQuery = query(commentsRef);
+                const commentsSnapshot = await getCountFromServer(commentsQuery);
+                const commentsCount = commentsSnapshot.data().count;
+
+                // Calcular rating promedio para este evento
+                const commentsData = await getDocs(commentsRef);
+                let eventRating = 0;
+                if (commentsData.size > 0) {
+                    const totalRating = commentsData.docs.reduce((sum, doc) => sum + (doc.data().rating || 0), 0);
+                    eventRating = parseFloat((totalRating / commentsData.size).toFixed(1));
+                }
+
+                return {
                     id: eventDoc.id,
                     title: eventDoc.data().title,
-                    attendees: attendeesCount
-                });
-            }
+                    attendees: attendeesCount,
+                    commentsCount: commentsCount,
+                    averageRating: eventRating
+                };
+            });
 
-            // Ordenar por popularidad y tomar los top 3
-            popularEvents.sort((a, b) => b.attendees - a.attendees).slice(0, 3);
+            const popularEvents = await Promise.all(popularEventsPromises);
+            popularEvents.sort((a, b) => (b.attendees + b.commentsCount) - (a.attendees + a.commentsCount)).slice(0, 3);
 
             // Datos de asistencia por mes (ejemplo - deberías adaptar según tus datos reales)
             const eventsByMonth = [
@@ -86,6 +131,8 @@ const CommunityScreen = () => {
                 eventsWillAttend,
                 eventsNotAttended,
                 participationRate,
+                totalComments,
+                averageEventRating,
                 eventsByMonth,
                 popularEvents
             });
@@ -116,12 +163,21 @@ const CommunityScreen = () => {
         1
     );
 
+    const StarRatingDisplay = ({ rating }: { rating: number }) => {
+        return (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <MaterialIcons name="star" size={16} color="#FFD700" />
+                <Text style={{ marginLeft: 4 }}>{rating}</Text>
+            </View>
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContainer}>
                 <Text style={styles.header}>Estadísticas de la Comunidad</Text>
 
-                {/* Tarjetas de estadísticas */}
+                {/* Tarjetas de estadísticas principales */}
                 <View style={styles.statsRow}>
                     <View style={styles.statCard}>
                         <Text style={styles.statNumber}>{stats.totalEvents}</Text>
@@ -132,8 +188,27 @@ const CommunityScreen = () => {
                         <Text style={styles.statLabel}>Asistidos</Text>
                     </View>
                     <View style={styles.statCard}>
-                        <Text style={styles.statNumber}>{stats.eventsWillAttend}</Text>
-                        <Text style={styles.statLabel}>Por asistir</Text>
+                        <Text style={styles.statNumber}>{stats.totalComments}</Text>
+                        <Text style={styles.statLabel}>Comentarios</Text>
+                    </View>
+                </View>
+
+                {/* Estadísticas secundarias */}
+                <View style={styles.secondaryStatsRow}>
+                    <View style={styles.secondaryStatCard}>
+                        <Text style={styles.secondaryStatNumber}>{stats.eventsWillAttend}</Text>
+                        <Text style={styles.secondaryStatLabel}>Por asistir</Text>
+                    </View>
+                    <View style={styles.secondaryStatCard}>
+                        <Text style={styles.secondaryStatNumber}>{stats.participationRate}%</Text>
+                        <Text style={styles.secondaryStatLabel}>Participación</Text>
+                    </View>
+                    <View style={styles.secondaryStatCard}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <MaterialIcons name="star" size={20} color="#FFD700" />
+                            <Text style={[styles.secondaryStatNumber, { marginLeft: 5 }]}>{stats.averageEventRating}</Text>
+                        </View>
+                        <Text style={styles.secondaryStatLabel}>Rating promedio</Text>
                     </View>
                 </View>
 
@@ -171,58 +246,6 @@ const CommunityScreen = () => {
                     </View>
                 </View>
 
-                {/* Gráfico circular de estados de participación */}
-                <Text style={styles.sectionTitle}>Estados de participación</Text>
-                <View style={styles.chartContainer}>
-                    <View style={styles.pieChartContainer}>
-                        <View style={styles.pieChart}>
-                            {/* Segmento de asistidos */}
-                            <View style={[
-                                styles.pieChartSegment,
-                                styles.pieChartSegmentAttended,
-                                {
-                                    transform: [
-                                        { rotate: '0deg' },
-                                        { scaleX: 1.5 }
-                                    ]
-                                }
-                            ]} />
-                            {/* Segmento de por asistir */}
-                            <View style={[
-                                styles.pieChartSegment,
-                                styles.pieChartSegmentWillAttend,
-                                {
-                                    transform: [
-                                        { rotate: `${(stats.eventsAttended / stats.totalEvents) * 360}deg` },
-                                        { scaleX: 1.5 }
-                                    ]
-                                }
-                            ]} />
-                            {/* Centro del gráfico */}
-                            <View style={styles.pieChartCenter}>
-                                <Text style={styles.pieChartCenterText}>
-                                    {stats.participationRate}%
-                                </Text>
-                                <Text style={styles.pieChartCenterSubtext}>Asistencia</Text>
-                            </View>
-                        </View>
-                        <View style={styles.pieChartLegend}>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendColor, styles.legendAttended]} />
-                                <Text style={styles.legendText}>Asistidos: {stats.eventsAttended}</Text>
-                            </View>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendColor, styles.legendWillAttend]} />
-                                <Text style={styles.legendText}>Por asistir: {stats.eventsWillAttend}</Text>
-                            </View>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendColor, styles.legendNotAttended]} />
-                                <Text style={styles.legendText}>No asistidos: {stats.eventsNotAttended}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-
                 {/* Eventos más populares */}
                 <Text style={styles.sectionTitle}>Eventos más populares</Text>
                 <View style={styles.popularEventsContainer}>
@@ -231,7 +254,22 @@ const CommunityScreen = () => {
                             <Text style={styles.popularEventRank}>{index + 1}</Text>
                             <View style={styles.popularEventInfo}>
                                 <Text style={styles.popularEventTitle}>{event.title}</Text>
-                                <Text style={styles.popularEventAttendees}>{event.attendees} asistentes</Text>
+                                <View style={styles.popularEventStats}>
+                                    <View style={styles.statBadge}>
+                                        <MaterialIcons name="people" size={14} color="#666" />
+                                        <Text style={styles.statBadgeText}>{event.attendees}</Text>
+                                    </View>
+                                    <View style={styles.statBadge}>
+                                        <MaterialIcons name="comment" size={14} color="#666" />
+                                        <Text style={styles.statBadgeText}>{event.commentsCount}</Text>
+                                    </View>
+                                    {event.averageRating > 0 && (
+                                        <View style={styles.statBadge}>
+                                            <MaterialIcons name="star" size={14} color="#FFD700" />
+                                            <Text style={styles.statBadgeText}>{event.averageRating}</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
                         </View>
                     ))}
@@ -260,7 +298,7 @@ const styles = StyleSheet.create({
     statsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 20,
+        marginBottom: 10,
     },
     statCard: {
         backgroundColor: '#ffffff',
@@ -285,6 +323,34 @@ const styles = StyleSheet.create({
         color: '#666',
         textAlign: 'center',
     },
+    secondaryStatsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    secondaryStatCard: {
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        padding: 12,
+        width: '30%',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    secondaryStatNumber: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#2c3e50',
+        marginBottom: 3,
+    },
+    secondaryStatLabel: {
+        fontSize: 11,
+        color: '#666',
+        textAlign: 'center',
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
@@ -303,7 +369,6 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
     },
-    // Estilos para el gráfico de barras
     barChart: {
         flexDirection: 'row',
         justifyContent: 'space-around',
@@ -341,57 +406,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginTop: 10,
     },
-    // Estilos para el gráfico circular
-    pieChartContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-    },
-    pieChart: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        backgroundColor: '#F44336',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    pieChartSegment: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        transformOrigin: 'center',
-    },
-    pieChartSegmentAttended: {
-        backgroundColor: '#4CAF50',
-    },
-    pieChartSegmentWillAttend: {
-        backgroundColor: '#2196F3',
-    },
-    pieChartCenter: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#ffffff',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    pieChartCenterText: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#2c3e50',
-    },
-    pieChartCenterSubtext: {
-        fontSize: 12,
-        color: '#666',
-    },
-    pieChartLegend: {
-        marginLeft: 20,
-    },
-    // Estilos comunes para leyendas
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -417,7 +431,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#666',
     },
-    // Estilos para eventos populares
     popularEventsContainer: {
         marginBottom: 20,
     },
@@ -451,9 +464,23 @@ const styles = StyleSheet.create({
         color: '#2c3e50',
         marginBottom: 5,
     },
-    popularEventAttendees: {
-        fontSize: 14,
+    popularEventStats: {
+        flexDirection: 'row',
+        marginTop: 5,
+    },
+    statBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        marginRight: 8,
+    },
+    statBadgeText: {
+        fontSize: 12,
         color: '#666',
+        marginLeft: 4,
     },
 });
 
