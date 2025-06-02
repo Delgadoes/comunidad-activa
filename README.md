@@ -26,4 +26,5 @@ Proyecto de organizador de eventos hacia una comunidad donde se permitirá inter
 
 🎨 Figma (Mockup): https://www.figma.com/design/wlr4jfEwwQHe8Bs4b5QJqy/Proyecto-Organizador-de-Eventos?node-id=0-1&t=psMr0wnuB7gOiG7G-1
 
+📒 Documentación: https://docs.google.com/document/d/1a7cfSC_tL58TqNbW7Tc0_XlNRw3qdjAOxKWWG0yWG1s/edit?usp=sharing
 
