@@ -28,3 +28,7 @@ Proyecto de organizador de eventos hacia una comunidad donde se permitirá inter
 
 📒 Documentación: https://docs.google.com/document/d/1a7cfSC_tL58TqNbW7Tc0_XlNRw3qdjAOxKWWG0yWG1s/edit?usp=sharing
 
+
+## 📝 Este proyecto está licenciado bajo
+**[Creative Commons BY-NC-SA 4.0]**(https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
